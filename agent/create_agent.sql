@@ -55,7 +55,7 @@ $$;
 SHOW AGENTS IN SCHEMA FLOOD_ANALYTICS.FLOOD;
 
 -- To use the agent:
--- 1. Snowsight -> AI & ML -> Snowflake Intelligence -> select FLOOD_RISK_AGENT
+-- 1. Snowsight -> AI & ML -> Snowflake CoWork (formerly Snowflake Intelligence) -> select FLOOD_RISK_AGENT
 -- 2. Ask questions like:
 --    "Which parishes have the highest flood risk and what mitigation plans exist for them?"
 --    "How many buildings are in coastal flood zones?"

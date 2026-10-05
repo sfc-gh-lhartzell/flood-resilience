@@ -1,4 +1,4 @@
-# US Flood Vulnerability Solution — Snowflake Summit 2026 HOL
+# US Flood Vulnerability Solution — Snowflake World Tour Chicago 2026 HOL
 
 An end-to-end flood vulnerability analysis platform built on Snowflake, combining open geospatial data from Overture Maps, FEMA risk indices, and CDC social vulnerability data to identify at-risk buildings across Louisiana.
 
@@ -92,14 +92,24 @@ This lab runs as a **Notebook in a Workspace** (not the legacy notebook experien
 #### 2a. Create the Workspace from Git
 1. In Snowsight, click **Projects** in the left sidebar
 2. Click **Workspaces**
-3. Click the **+** button (top right) → **Git Workspace**
+3. Open the workspace dropdown (top left) → **From Git repository**
 4. In the dialog:
-   - **Repository URL**: Paste the GitHub repo URL for this project
+   - **Repository URL**: `https://github.com/sfc-gh-lhartzell/flood-resilience`
    - **API Integration**: Click **+ Create a new API integration**
      - **Integration name**: `FLOODS` (must be CAPITAL LETTERS)
      - **Allowed domain**: `github.com`
+     - Don't see **Create a new API integration**? Switch to `ACCOUNTADMIN`, or run this in a SQL file and then select `FLOODS` from the dropdown:
+       ```sql
+       USE ROLE ACCOUNTADMIN;
+       CREATE OR REPLACE API INTEGRATION FLOODS
+         API_PROVIDER = git_https_api
+         API_ALLOWED_PREFIXES = ('https://github.com')
+         ALLOWED_AUTHENTICATION_SECRETS = ALL
+         ENABLED = TRUE;
+       ```
+   - **Authentication**: Public repository
      - Click **Create**
-   - **Workspace name**: `flood-resilience` (or your preferred name)
+   - **Workspace name**: `flood-resilience` (must be exactly this; the notebook reads files from this path)
 5. Click **Create**
 6. Wait for the workspace to sync with the repository
 #### 2b. Open the Notebook and Connect to a Service
@@ -207,7 +217,7 @@ The Cortex Agent is the most powerful interface — it combines **structured dat
 **Use the agent:**
 
 6. In Snowsight, click **AI & ML** in the left sidebar
-7. Click **Snowflake Intelligence** (or **Agents**)
+7. Click **Snowflake CoWork** (formerly Snowflake Intelligence) or **Agents**
 8. You should see `FLOOD_RISK_AGENT` listed — click on it
 9. Start a conversation!
 
@@ -271,8 +281,19 @@ Buildings         →   CDC SVI CSV           →   Cortex Search
               └────────────────────────┘
                           ↓
               STREAMLIT DASHBOARD
-              SNOWFLAKE INTELLIGENCE
+              SNOWFLAKE COWORK
 ```
+
+---
+
+## Backup: Notebook Won't Start (Container Capacity)
+
+Workspace notebooks need an SPCS container. If the region runs out of capacity and your notebook won't start, use the worksheet version instead. It runs on a warehouse, so no container is needed.
+
+1. Complete Steps 1–2 above (the workspace must be named exactly `flood-resilience`).
+2. In your workspace, open **`flood_lab_worksheet_backup.sql`**.
+3. Run it **section by section**, top to bottom, as `ACCOUNTADMIN`.
+4. Build the agent in Semantic Studio (notebook Lab 7B), or uncomment the **FALLBACK** section at the bottom of the file.
 
 ---
 
@@ -311,4 +332,4 @@ Buildings         →   CDC SVI CSV           →   Cortex Search
 
 ---
 
-*Built for Snowflake Summit 2026 | Data: Overture Maps / CARTO · FEMA NRI · CDC SVI · Louisiana GOHSEP*
+*Originally built by Fawad Qureshi for Snowflake Summit 2026; adapted for World Tour Chicago 2026 | Data: Overture Maps / CARTO · FEMA NRI · CDC SVI · Louisiana GOHSEP*

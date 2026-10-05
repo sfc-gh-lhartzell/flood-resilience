@@ -61,6 +61,20 @@ flood-resilience/
 
 ## Quick Start (Step by Step)
 
+### Session Flow at a Glance
+
+| # | Where | What |
+|---|---|---|
+| 1 | Snowsight UI | Install Overture Maps Buildings from Marketplace (Step 1) |
+| 2 | Snowsight UI | Create the `flood-resilience` workspace from Git (Step 2) |
+| 3 | Notebook | Run Labs 1–5: load data, geospatial joins, dynamic table, PDF parsing + Cortex Search |
+| 4 | Notebook | Lab 6: run the table check (no Cortex Analyst UI step) |
+| 5 | Notebook | Lab 7A: deploy the Streamlit dashboard, then run the grants cell |
+| 6 | CoCo panel | Lab 7B: paste the prompts into CoCo to build the semantic view + agent |
+| 7 | Snowflake CoWork | Chat with `FLOOD_RISK_AGENT` |
+
+> Notebook won't start? Use [the worksheet backup](#backup-notebook-wont-start-container-capacity).
+
 ### Prerequisites
 
 - Snowflake account with **ACCOUNTADMIN** role (trial accounts work)
@@ -180,25 +194,9 @@ CREATE OR REPLACE STREAMLIT FLOOD_ANALYTICS.FLOOD.FLOOD_VULNERABILITY_DASHBOARD
 
 ---
 
-### Step 6 — Use Cortex Analyst (Structured Data Q&A)
+### Step 6 — Cortex Analyst (no separate step)
 
-Cortex Analyst lets you ask natural language questions that automatically generate SQL.
-
-1. In Snowsight, click **AI & ML** in the left sidebar
-2. Click **Cortex Analyst**
-3. Click **+ New Chat** (or **New Conversation**)
-4. When prompted to select a semantic model, choose:
-   - **Stage**: `@FLOOD_ANALYTICS.FLOOD.FLOOD_DATA_STAGE/semantic/flood_risk_model.yaml`
-5. Start asking questions!
-
-**Try these questions:**
-- *"Which parish has the highest composite flood vulnerability score?"*
-- *"How many buildings are in FEMA Special Flood Hazard Areas by parish?"*
-- *"What is the total expected annual loss statewide?"*
-- *"Which parishes have both high social vulnerability (SVI > 0.7) and high flood exposure?"*
-- *"How many hospitals and schools are in flood zones?"*
-
-> **What happens:** Cortex Analyst reads the semantic model, understands your table structure, and generates SQL to answer your question. You'll see both the SQL and the results.
+Cortex Analyst now runs **inside the agent** you build in Step 7: the agent's semantic view tool turns natural-language questions into SQL. Just run the Lab 6 table check in the notebook and continue.
 
 ---
 
@@ -206,20 +204,20 @@ Cortex Analyst lets you ask natural language questions that automatically genera
 
 The Cortex Agent is the most powerful interface — it combines **structured data** (building counts, risk scores, parish statistics) with **unstructured policy documents** (mitigation plans, historical events, levee projects) in a single conversational experience.
 
-**Create the agent:**
+**Build the agent with CoCo (main path):**
 
-1. In Snowsight, click **Projects** in the left sidebar
-2. Click **Worksheets** → **+ SQL Worksheet**
-3. Paste the entire contents of `agent/create_agent.sql` from this repo
-4. Click **Run All** (or select all and press Ctrl+Enter)
-5. You should see: `Agent FLOOD_RISK_AGENT successfully created.`
+1. In the notebook, run the **grants** cell (after Lab 7A)
+2. In your `flood-resilience` workspace, click the **CoCo** button (blue sparkle, bottom right)
+3. Paste the prompts from notebook **Lab 7B** into CoCo, one at a time or all at once
+4. Approve the actions CoCo proposes. It creates `FLOOD_RISK_SEMANTIC_VIEW` and `FLOOD_RISK_AGENT`
+
+**If CoCo can't build it (fallback):** switch the **Lab 7B (Fallback)** cell in the notebook to SQL and run it. It creates the semantic view from `semantic_model/flood_risk_model.yaml` and deploys the agent.
 
 **Use the agent:**
 
-6. In Snowsight, click **AI & ML** in the left sidebar
-7. Click **Snowflake CoWork** (formerly Snowflake Intelligence) or **Agents**
-8. You should see `FLOOD_RISK_AGENT` listed — click on it
-9. Start a conversation!
+5. In Snowsight, open **Snowflake CoWork** (formerly Snowflake Intelligence)
+6. Select `FLOOD_RISK_AGENT`. If it's not listed, run the **Lab 7C (Fallback)** cell
+7. Start a new conversation
 
 **Try these questions (the agent will automatically choose the right tool):**
 

@@ -9,8 +9,9 @@
 --   2. Open this file in your workspace, set role ACCOUNTADMIN.
 --   3. Run section by section top to bottom (Cmd/Ctrl+Enter per
 --      statement, or select a block and run). Step 1.4 takes 3-5 min.
---   4. Then build the agent in Semantic Studio (notebook Lab 7B),
---      or uncomment the FALLBACK section at the bottom.
+--   4. Then build the agent with CoCo: paste the notebook Lab 7B
+--      prompts into the CoCo panel. Only if that fails, uncomment
+--      the FALLBACK section at the bottom.
 -- ============================================================
 
 
@@ -750,11 +751,11 @@ SELECT SNOWFLAKE.CORTEX.COMPLETE(
 
 
 -- ############################################################
--- Lab 6: Cortex Analyst — Natural Language Q&A
+-- Lab 6: Verify Tables (Cortex Analyst runs inside your agent)
 -- ############################################################
 
 -- ============================================================
--- STEP 6.1: Verify all tables exist for Cortex Analyst
+-- STEP 6.1: Verify all tables exist before building the semantic view
 -- ============================================================
 SELECT
     TABLE_NAME,
@@ -835,7 +836,15 @@ GRANT SELECT ON ALL SEMANTIC VIEWS IN SCHEMA FLOOD_ANALYTICS.PUBLIC TO ROLE ATTE
 GRANT REFERENCES ON ALL SEMANTIC VIEWS IN SCHEMA FLOOD_ANALYTICS.FLOOD TO ROLE ATTENDEE_ROLE;
 GRANT REFERENCES ON ALL SEMANTIC VIEWS IN SCHEMA FLOOD_ANALYTICS.PUBLIC TO ROLE ATTENDEE_ROLE;
 GRANT SELECT ON FUTURE SEMANTIC VIEWS IN SCHEMA FLOOD_ANALYTICS.FLOOD TO ROLE ATTENDEE_ROLE;
-GRANT SELECT ON FUTURE SEMANTIC VIEWS IN SCHEMA FLOOD_ANALYTICS.PUBLIC TO ATTENDEE_ROLE;
+GRANT SELECT ON FUTURE SEMANTIC VIEWS IN SCHEMA FLOOD_ANALYTICS.PUBLIC TO ROLE ATTENDEE_ROLE;
+
+-- ============================================================
+-- PRIVILEGES FOR: Agent tools (warehouse, stage, search, agent)
+-- ============================================================
+GRANT USAGE ON WAREHOUSE FLOOD_WH TO ROLE ATTENDEE_ROLE;
+GRANT READ ON STAGE FLOOD_ANALYTICS.FLOOD.FLOOD_DATA_STAGE TO ROLE ATTENDEE_ROLE;
+GRANT USAGE ON CORTEX SEARCH SERVICE FLOOD_ANALYTICS.FLOOD.FLOOD_POLICY_SEARCH TO ROLE ATTENDEE_ROLE;
+GRANT USAGE ON FUTURE AGENTS IN SCHEMA FLOOD_ANALYTICS.FLOOD TO ROLE ATTENDEE_ROLE;
 
 
 -- ############################################################
@@ -844,12 +853,12 @@ GRANT SELECT ON FUTURE SEMANTIC VIEWS IN SCHEMA FLOOD_ANALYTICS.PUBLIC TO ATTEND
 
 
 -- ############################################################
--- Lab 7B: Deploy Cortex Agent (Structured + Unstructured Q&A)
+-- Lab 7B (Fallback): Deploy Agent via SQL
 -- ############################################################
 
 
 -- ############################################################
--- Lab 7C: Register Agent in Snowflake CoWork
+-- Lab 7C (Fallback): Register Agent in Snowflake CoWork
 -- ############################################################
 
 
@@ -869,18 +878,249 @@ SELECT 'Cleanup skipped. Uncomment lines above when ready.' AS STATUS;
 
 
 -- ############################################################
--- FALLBACK: create agent + register it (only if Semantic Studio fails)
--- Uncomment and run.
+-- FALLBACK: create semantic view + agent, register in CoWork
+-- Use the CoCo prompts in notebook Lab 7B first.
+-- Only if that fails: select everything below and uncomment
+-- (Cmd+/ or Ctrl+/), then run top to bottom.
 -- ############################################################
 
 -- -- ============================================================
 -- -- STEP 7B: Create Cortex Agent (Structured + Unstructured)
 -- -- Combines Cortex Analyst (SQL) + Cortex Search (policy docs)
 -- -- ============================================================
--- COPY FILES INTO @FLOOD_ANALYTICS.FLOOD.FLOOD_DATA_STAGE/semantic/
--- FROM 'snow://workspace/USER$.PUBLIC."flood-resilience"/versions/live/'
--- FILES=('semantic_model/flood_risk_model.yaml');
+-- -- Step 1: Create the semantic view from the repo's YAML model
+-- CALL SYSTEM$CREATE_SEMANTIC_VIEW_FROM_YAML('FLOOD_ANALYTICS.FLOOD', $$
+-- name: FLOOD_RISK_SEMANTIC_VIEW
+-- description: >
+--   Louisiana flood vulnerability analysis model.
+--   Combines Overture Maps building footprints with FEMA National Risk Index,
+--   CDC Social Vulnerability Index, and derived flood zone designations.
 -- 
+-- tables:
+--   - name: BUILDING_FLOOD_RISK
+--     base_table:
+--       database: FLOOD_ANALYTICS
+--       schema: FLOOD
+--       table: BUILDING_FLOOD_RISK
+--     description: >
+--       Individual buildings in Louisiana with flood risk scores, FEMA flood zone designations,
+--       and CDC social vulnerability data. Each row is one building.
+--     dimensions:
+--       - name: PARISH
+--         expr: PARISH
+--         description: Louisiana parish name (equivalent to county in other states)
+--         data_type: TEXT
+--         unique: false
+--       - name: FLOOD_ZONE
+--         expr: FLOOD_ZONE
+--         description: >
+--           FEMA flood zone designation.
+--           VE = Coastal High Hazard (mandatory insurance),
+--           AE = 1% annual chance inland flood (mandatory insurance),
+--           X500 = 0.2% annual chance (moderate risk),
+--           X = minimal flood hazard.
+--         data_type: TEXT
+--       - name: IN_SPECIAL_FLOOD_HAZARD_AREA
+--         expr: IN_SPECIAL_FLOOD_HAZARD_AREA
+--         description: >
+--           TRUE if building is in a FEMA Special Flood Hazard Area (Zone AE or VE).
+--           Buildings here require mandatory flood insurance if mortgaged.
+--         data_type: BOOLEAN
+--       - name: CLASS
+--         expr: CLASS
+--         description: >
+--           Building type from Overture Maps (e.g. residential, commercial, hospital,
+--           school, fire_station, church, nursing_home, government).
+--         data_type: TEXT
+--       - name: NRI_RISK_RATING
+--         expr: NRI_RISK_RATING
+--         description: >
+--           FEMA NRI overall risk rating for the census tract:
+--           Very High | Relatively High | Relatively Moderate | Relatively Low | Very Low
+--         data_type: TEXT
+--       - name: INLAND_FLOOD_RISK_RATING
+--         expr: INLAND_FLOOD_RISK_RATING
+--         description: FEMA NRI inland/riverine flooding risk rating for the tract
+--         data_type: TEXT
+--       - name: COASTAL_FLOOD_RISK_RATING
+--         expr: COASTAL_FLOOD_RISK_RATING
+--         description: FEMA NRI coastal flooding risk rating for the tract
+--         data_type: TEXT
+--       - name: TRACTFIPS
+--         expr: TRACTFIPS
+--         description: 11-digit census tract FIPS code
+--         data_type: TEXT
+--     measures:
+--       - name: BUILDING_COUNT
+--         expr: COUNT(BUILDING_ID)
+--         description: Total number of buildings
+--         data_type: NUMBER
+--         default_aggregation: count
+--       - name: COMPOSITE_VULNERABILITY_SCORE
+--         expr: AVG(COMPOSITE_VULNERABILITY_SCORE)
+--         description: >
+--           Average composite vulnerability score (0-100) combining NRI risk (40%),
+--           CDC social vulnerability (30%), and flood zone exposure (30%).
+--           Higher score = more vulnerable.
+--         data_type: NUMBER
+--         default_aggregation: avg
+--       - name: NRI_RISK_SCORE
+--         expr: AVG(NRI_RISK_SCORE)
+--         description: Average FEMA NRI overall risk score for the tract (0-100)
+--         data_type: NUMBER
+--         default_aggregation: avg
+--       - name: SVI_OVERALL
+--         expr: AVG(SVI_OVERALL)
+--         description: >
+--           Average CDC Social Vulnerability Index score (0-1).
+--           0 = least vulnerable, 1 = most vulnerable.
+--           Accounts for poverty, disability, age, mobile homes, no vehicle access.
+--         data_type: NUMBER
+--         default_aggregation: avg
+--       - name: EXPECTED_ANNUAL_LOSS
+--         expr: SUM(EXPECTED_ANNUAL_LOSS)
+--         description: Total expected annual dollar loss from all natural hazards in the census tract
+--         data_type: NUMBER
+--         default_aggregation: sum
+--       - name: EAL_BUILDINGS
+--         expr: SUM(EAL_BUILDINGS)
+--         description: Expected annual dollar loss for buildings specifically
+--         data_type: NUMBER
+--         default_aggregation: sum
+--       - name: BUILDINGS_IN_SFHA
+--         expr: SUM(CASE WHEN IN_SPECIAL_FLOOD_HAZARD_AREA THEN 1 ELSE 0 END)
+--         description: Number of buildings in FEMA Special Flood Hazard Areas
+--         data_type: NUMBER
+--         default_aggregation: sum
+--       - name: PCT_IN_SFHA
+--         expr: SUM(CASE WHEN IN_SPECIAL_FLOOD_HAZARD_AREA THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
+--         description: Percentage of buildings located in Special Flood Hazard Areas
+--         data_type: NUMBER
+--         default_aggregation: avg
+--       - name: MOBILE_HOME_PCT
+--         expr: AVG(MOBILE_HOME_PCT)
+--         description: >
+--           Average CDC SVI mobile home percentile rank.
+--           Mobile homes are structurally vulnerable to flooding.
+--         data_type: NUMBER
+--         default_aggregation: avg
+--       - name: NO_VEHICLE_PCT
+--         expr: AVG(NO_VEHICLE_PCT)
+--         description: >
+--           Average CDC SVI no-vehicle percentile rank.
+--           Higher = more residents without vehicle access (evacuation barrier).
+--         data_type: NUMBER
+--         default_aggregation: avg
+-- 
+--   - name: PARISH_FLOOD_SUMMARY
+--     base_table:
+--       database: FLOOD_ANALYTICS
+--       schema: FLOOD
+--       table: PARISH_FLOOD_SUMMARY
+--     description: >
+--       Parish-level aggregated flood risk statistics.
+--       One row per Louisiana parish (64 total).
+--     dimensions:
+--       - name: PARISH
+--         expr: PARISH
+--         description: Louisiana parish name
+--         data_type: TEXT
+--         unique: true
+--     measures:
+--       - name: TOTAL_BUILDINGS
+--         expr: SUM(TOTAL_BUILDINGS)
+--         description: Total number of buildings in the parish
+--         data_type: NUMBER
+--         default_aggregation: sum
+--       - name: BUILDINGS_IN_SFHA
+--         expr: SUM(BUILDINGS_IN_SFHA)
+--         description: Number of buildings in FEMA Special Flood Hazard Areas
+--         data_type: NUMBER
+--         default_aggregation: sum
+--       - name: PCT_IN_SFHA
+--         expr: AVG(PCT_IN_SFHA)
+--         description: Percentage of buildings located in flood zones
+--         data_type: NUMBER
+--         default_aggregation: avg
+--       - name: AVG_COMPOSITE_SCORE
+--         expr: AVG(AVG_COMPOSITE_SCORE)
+--         description: Average composite vulnerability score for the parish (0-100)
+--         data_type: NUMBER
+--         default_aggregation: avg
+--       - name: AVG_NRI_RISK_SCORE
+--         expr: AVG(AVG_NRI_RISK_SCORE)
+--         description: Average FEMA NRI risk score for the parish
+--         data_type: NUMBER
+--         default_aggregation: avg
+--       - name: AVG_SVI_SCORE
+--         expr: AVG(AVG_SVI_SCORE)
+--         description: Average CDC Social Vulnerability Index score for the parish (0-1)
+--         data_type: NUMBER
+--         default_aggregation: avg
+--       - name: TOTAL_EXPECTED_ANNUAL_LOSS
+--         expr: SUM(TOTAL_EXPECTED_ANNUAL_LOSS)
+--         description: Total expected annual dollar loss from all natural hazards
+--         data_type: NUMBER
+--         default_aggregation: sum
+--       - name: BUILDING_EXPECTED_ANNUAL_LOSS
+--         expr: SUM(BUILDING_EXPECTED_ANNUAL_LOSS)
+--         description: Expected annual dollar loss for buildings specifically
+--         data_type: NUMBER
+--         default_aggregation: sum
+-- 
+-- verified_queries:
+--   - name: most_vulnerable_parishes
+--     question: "Which parishes have the highest composite flood vulnerability score?"
+--     use_as_onboarding_question: true
+--     sql: |
+--       SELECT PARISH, AVG_COMPOSITE_SCORE, AVG_NRI_RISK_SCORE, AVG_SVI_SCORE,
+--              PCT_IN_SFHA, TOTAL_EXPECTED_ANNUAL_LOSS
+--       FROM FLOOD_ANALYTICS.FLOOD.PARISH_FLOOD_SUMMARY
+--       ORDER BY AVG_COMPOSITE_SCORE DESC
+--       LIMIT 10
+-- 
+--   - name: buildings_in_flood_zones
+--     question: "How many buildings are in FEMA Special Flood Hazard Areas by parish?"
+--     use_as_onboarding_question: true
+--     sql: |
+--       SELECT PARISH, BUILDINGS_IN_SFHA, TOTAL_BUILDINGS, PCT_IN_SFHA
+--       FROM FLOOD_ANALYTICS.FLOOD.PARISH_FLOOD_SUMMARY
+--       ORDER BY BUILDINGS_IN_SFHA DESC
+-- 
+--   - name: critical_infra_at_risk
+--     question: "How many hospitals and schools are in flood zones?"
+--     use_as_onboarding_question: true
+--     sql: |
+--       SELECT CLASS, COUNT(*) AS TOTAL,
+--              SUM(CASE WHEN IN_SPECIAL_FLOOD_HAZARD_AREA THEN 1 ELSE 0 END) AS IN_SFHA,
+--              ROUND(SUM(CASE WHEN IN_SPECIAL_FLOOD_HAZARD_AREA THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) AS PCT_IN_SFHA
+--       FROM FLOOD_ANALYTICS.FLOOD.BUILDING_FLOOD_RISK
+--       WHERE CLASS IN ('hospital','clinic','school','fire_station','nursing_home')
+--       GROUP BY CLASS
+--       ORDER BY PCT_IN_SFHA DESC
+-- 
+--   - name: high_svi_flood_overlap
+--     question: "Which parishes have both high social vulnerability and high flood exposure?"
+--     use_as_onboarding_question: true
+--     sql: |
+--       SELECT PARISH, AVG_SVI_SCORE, PCT_IN_SFHA, AVG_COMPOSITE_SCORE
+--       FROM FLOOD_ANALYTICS.FLOOD.PARISH_FLOOD_SUMMARY
+--       WHERE AVG_SVI_SCORE >= 0.7
+--         AND PCT_IN_SFHA   >= 30
+--       ORDER BY AVG_COMPOSITE_SCORE DESC
+-- 
+--   - name: total_annual_loss
+--     question: "What is the total expected annual loss statewide?"
+--     use_as_onboarding_question: true
+--     sql: |
+--       SELECT
+--         SUM(TOTAL_EXPECTED_ANNUAL_LOSS)      AS STATEWIDE_TOTAL_EAL,
+--         SUM(BUILDING_EXPECTED_ANNUAL_LOSS)   AS STATEWIDE_BUILDING_EAL,
+--         COUNT(*)                             AS PARISH_COUNT
+--       FROM FLOOD_ANALYTICS.FLOOD.PARISH_FLOOD_SUMMARY
+-- $$);
+-- 
+-- -- Step 2: Create the agent on top of the semantic view
 -- CREATE OR REPLACE AGENT FLOOD_ANALYTICS.FLOOD.FLOOD_RISK_AGENT
 -- FROM SPECIFICATION $$
 -- {
@@ -932,7 +1172,7 @@ SELECT 'Cleanup skipped. Uncomment lines above when ready.' AS STATUS;
 --         "type": "warehouse",
 --         "warehouse": "FLOOD_WH"
 --       },
---       "semantic_model_file": "@FLOOD_ANALYTICS.FLOOD.FLOOD_DATA_STAGE/semantic/semantic_model/flood_risk_model.yaml"
+--       "semantic_view": "FLOOD_ANALYTICS.FLOOD.FLOOD_RISK_SEMANTIC_VIEW"
 --     },
 --     "search_policy_docs": {
 --       "search_service": "FLOOD_ANALYTICS.FLOOD.FLOOD_POLICY_SEARCH"
@@ -942,6 +1182,8 @@ SELECT 'Cleanup skipped. Uncomment lines above when ready.' AS STATUS;
 -- $$;
 -- 
 -- SHOW AGENTS IN SCHEMA FLOOD_ANALYTICS.FLOOD;
+-- 
+-- GRANT USAGE ON AGENT FLOOD_ANALYTICS.FLOOD.FLOOD_RISK_AGENT TO ROLE ATTENDEE_ROLE;
 
 -- CREATE SNOWFLAKE INTELLIGENCE IF NOT EXISTS SNOWFLAKE_INTELLIGENCE_OBJECT_DEFAULT;
 -- 

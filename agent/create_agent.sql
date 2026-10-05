@@ -1,6 +1,8 @@
 -- ============================================================
 -- Create the Flood Risk Agent
 -- Combines structured data (Cortex Analyst) + policy documents (Cortex Search)
+-- Requires FLOOD_RISK_SEMANTIC_VIEW (built with CoCo in Lab 7B, or by the
+-- Lab 7B (Fallback) cell in the notebook)
 -- ============================================================
 
 CREATE OR REPLACE AGENT FLOOD_ANALYTICS.FLOOD.FLOOD_RISK_AGENT
@@ -42,7 +44,7 @@ FROM SPECIFICATION $$
         "type": "warehouse",
         "warehouse": "FLOOD_WH"
       },
-      "semantic_model_file": "@FLOOD_ANALYTICS.FLOOD.FLOOD_DATA_STAGE/semantic/flood_risk_model.yaml"
+      "semantic_view": "FLOOD_ANALYTICS.FLOOD.FLOOD_RISK_SEMANTIC_VIEW"
     },
     "search_policy_docs": {
       "search_service": "FLOOD_ANALYTICS.FLOOD.FLOOD_POLICY_SEARCH"
